@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meine Webseite</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin: 0;
+    background: #f0f0f0;
+}
+
+#welcome {
+    margin-top: 100px;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+#gameContainer {
+    display: none;
+    margin-top: 20px;
+}
+
+canvas {
+    background: white;
+    border: 2px solid black;
+}
+</style>
+</head>
+<body>
+
+<div id="welcome">
+    <h1>Willkommen auf meiner Webseite!</h1>
+
+    <h2>🎲 Würfel Game</h2>
+
+    <p>Leck Eier.</p>
+
+    <button onclick="startGame()">▶ Start</button>
+</div>
+
+<div id="gameContainer">
+    <h2>Würfel Game</h2>
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+</div>
+
+<script>
+let canvas;
+let ctx;
+
+let player;
+let enemy;
+
+let score = 0;
+let running = false;
+
+const playerSpeed = 20;
+
+const baseWidth = 40;
+const maxWidth = baseWidth * 8;
+const enemyHeight = 40;
+const baseSpeed = 5;
+
+function startGame() {
+    document.getElementById("welcome").style.display = "none";
+    document.getElementById("gameContainer").style.display = "block";
+
+    canvas = document.getElementById("gameCanvas");
+    ctx = canvas.getContext("2d");
+
+    initGame();
+
+    document.addEventListener("keydown", keyHandler);
+
+    gameLoop();
+}
+
+function initGame() {
+    score = 0;
+    running = true;
+
+    player = {
+        x: 280,
+        y: 350,
+        width: 40,
+        height: 40
+    };
+
+    enemy = {
+        width: randomWidth(),
+        height: enemyHeight
+    };
+
+    enemy.x = randomX(enemy.width);
+    enemy.y = 0;
+}
+
+function randomWidth() {
+    return Math.floor(
+        Math.random() * (maxWidth - baseWidth + 1)
+    ) + baseWidth;
+}
+
+function randomX(width) {
+    return Math.floor(
+        Math.random() * (canvas.width - width)
+    );
+}
+
+function keyHandler(e) {
+    if (!running) return;
+
+    if (e.key === "a" || e.key === "ArrowLeft") {
+        player.x -= playerSpeed;
+    }
+
+    if (e.key === "d" || e.key === "ArrowRight") {
+        player.x += playerSpeed;
+    }
+
+    if (player.x < 0) player.x = 0;
+
+    if (player.x + player.width > canvas.width) {
+        player.x = canvas.width - player.width;
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "blue";
+    ctx.fillRect(
+        player.x,
+        player.y,
+        player.width,
+        player.height
+    );
+
+    ctx.fillStyle = "red";
+    ctx.fillRect(
+        enemy.x,
+        enemy.y,
+        enemy.width,
+        enemy.height
+    );
+
+    ctx.fillStyle = "black";
+    ctx.font = "20px Arial";
+    ctx.fillText("Score: " + score, 10, 25);
+}
+
+function checkCollision() {
+    return (
+        player.x < enemy.x + enemy.width &&
+        player.x + player.width > enemy.x &&
+        player.y < enemy.y + enemy.height &&
+        player.y + player.height > enemy.y
+    );
+}
+
+function gameOver() {
+    running = false;
+
+    ctx.fillStyle = "black";
+    ctx.font = "40px Arial";
+    ctx.fillText("GAME OVER", 170, 180);
+
+    ctx.font = "25px Arial";
+    ctx.fillText("Score: " + score, 245, 220);
+
+    setTimeout(() => {
+        if (confirm("Neustarten?")) {
+            initGame();
+            gameLoop();
+        }
+    }, 200);
+}
+
+function gameLoop() {
+    if (!running) return;
+
+    const speed = baseSpeed + Math.floor(score / 3);
+
+    enemy.y += speed;
+
+    if (checkCollision()) {
+        gameOver();
+        return;
+    }
+
+    if (enemy.y > canvas.height) {
+        score++;
+
+        enemy.width = randomWidth();
+        enemy.x = randomX(enemy.width);
+        enemy.y = 0;
+    }
+
+    draw();
+
+    requestAnimationFrame(gameLoop);
+}
+</script>
+
+</body>
+</html>
