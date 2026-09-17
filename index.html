@@ -132,6 +132,7 @@ let score = 0;
 let running = false;
 
 const playerSpeed = 20;
+const touchPlayerSpeed = 5;
 const baseWidth = 40;
 const maxWidth = baseWidth * 6;
 
@@ -668,11 +669,11 @@ function gameLoop() {
     if (!running) return;
 
     if (moveLeft) {
-        player.x -= playerSpeed;
+        player.x -= touchPlayerSpeed;
     }
 
     if (moveRight) {
-        player.x += playerSpeed;
+        player.x += touchPlayerSpeed;
     }
 
     keepPlayerInside();
@@ -766,8 +767,6 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 </script>
-
-<script src="https://pl31383851.profitableratecpmnetwork.com/cc/f1/3b/ccf13b7b44c45267d2d24937b8fb3e92.js"></script>
 
 </body>
 </html>
