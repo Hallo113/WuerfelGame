@@ -2,13 +2,10 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Würfel_Game</title>
 
 <style>
-
 body {
     font-family: Arial, sans-serif;
     text-align: center;
@@ -30,30 +27,34 @@ button {
 #gameContainer {
     display: none;
     margin-top: 20px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 10px;
 }
 
-/* Spielfeld */
 #canvasWrapper {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
     width: 100%;
     touch-action: none;
+    overflow: hidden;
+}
+
+#gameCanvas {
+    width: min(100%, calc((100vh - 180px) * 1.5));
+    height: auto;
+    max-width: 1400px;
+    box-sizing: border-box;
 }
 
 canvas {
     background: white;
     border: 2px solid black;
-    max-width: 95vw;
-    height: auto;
     display: block;
-
-    /* Wichtig für den Zoom */
     transform-origin: center center;
 }
 
-/* Touch-Steuerung */
 #touchControls {
     display: none;
     justify-content: center;
@@ -72,24 +73,19 @@ canvas {
     background: #ddd;
     touch-action: none;
     user-select: none;
-    -webkit-user-select: none;
 }
 
 #touchControls button:active {
     background: #aaa;
 }
 
-/* Touch-Geräte */
 @media (pointer: coarse) {
-
     #touchControls {
         display: flex;
     }
-
 }
 
 @media (max-width: 500px) {
-
     #touchControls {
         gap: 15px;
     }
@@ -99,62 +95,33 @@ canvas {
         height: 75px;
         font-size: 32px;
     }
-
 }
-
 </style>
 </head>
 
-
 <body>
 
-
 <div id="welcome">
-
     <h1>Willkommen auf meiner Webseite!</h1>
-
     <h2>🎲 Würfel Game</h2>
-
     <p>Hallo</p>
-
     <button onclick="startGame()">▶ Start</button>
-
 </div>
-
-
 
 <div id="gameContainer">
-
     <h2>Würfel Game</h2>
 
-
-    <!-- Canvas Wrapper -->
     <div id="canvasWrapper">
-
-        <canvas
-            id="gameCanvas"
-            width="600"
-            height="400">
-        </canvas>
-
+        <canvas id="gameCanvas" width="1200" height="800"></canvas>
     </div>
 
-
-    <!-- Touch Buttons -->
     <div id="touchControls">
-
         <button id="leftBtn">◀</button>
-
         <button id="rightBtn">▶</button>
-
     </div>
-
 </div>
 
-
-
 <script>
-
 let canvas;
 let ctx;
 
@@ -165,623 +132,640 @@ let score = 0;
 let running = false;
 
 const playerSpeed = 20;
-
 const baseWidth = 40;
-const maxWidth = baseWidth * 8;
+const maxWidth = baseWidth * 6;
 
 const enemyHeight = 40;
 const baseSpeed = 5;
 
+let speed = baseSpeed;
+let coinSlowdown = 0;
+
+let cubes = [];
+let coins = [];
+let shieldItems = [];
+
+let shieldCharges = 0;
+let lastShieldLevel = 0;
 
 let moveLeft = false;
 let moveRight = false;
 
-
 let zoom = 1;
-
 const minZoom = 0.5;
 const maxZoom = 2.0;
 
 let lastTouchDistance = null;
 
 
-
 function startGame() {
-
     document.getElementById("welcome").style.display = "none";
-
     document.getElementById("gameContainer").style.display = "block";
 
     canvas = document.getElementById("gameCanvas");
-
     ctx = canvas.getContext("2d");
 
-
     setupTouchControls();
-
     setupZoom();
-
-
     initGame();
 
-
-    document.addEventListener(
-        "keydown",
-        keyHandler
-    );
-
+    document.addEventListener("keydown", keyHandler);
 
     gameLoop();
-
 }
 
 
 function initGame() {
-
     score = 0;
-
     running = true;
 
+    speed = baseSpeed;
+    coinSlowdown = 0;
 
     player = {
-
-        x: 280,
-
-        y: 350,
-
+        x: (canvas.width - 40) / 2,
+        y: canvas.height - 44,
         width: 40,
-
         height: 40
-
     };
-
 
     enemy = {
-
         width: randomWidth(),
-
-        height: enemyHeight
-
+        height: enemyHeight,
+        x: 0,
+        y: 0
     };
-
 
     enemy.x = randomX(enemy.width);
 
-    enemy.y = 0;
+    cubes = [];
+    coins = [];
+    shieldItems = [];
 
+    shieldCharges = 0;
+    lastShieldLevel = 0;
+
+    // Zwei rote Balken am Anfang
+    spawnCube(0);
+    spawnCube(-120);
+
+    spawnCoinsFromTop();
 }
 
 
+function cubesOverlap(a, b, gap = 12) {
+    return (
+        a.x < b.x + b.width + gap &&
+        a.x + a.width + gap > b.x &&
+        a.y < b.y + b.height + gap &&
+        a.y + a.height + gap > b.y
+    );
+}
+
+
+function spawnCube(startY = 0) {
+    let cube;
+    let attempts = 0;
+
+    do {
+        cube = {
+            width: randomWidth(),
+            height: enemyHeight,
+            x: 0,
+            y: startY
+        };
+
+        cube.x = randomX(cube.width);
+        attempts++;
+
+    } while (
+        cubes.some(existing => cubesOverlap(cube, existing)) &&
+        attempts < 100
+    );
+
+    cubes.push(cube);
+}
+
+
+function spawnCoinsFromTop() {
+    const radius = 12;
+
+    // Münzen sind unabhängig von roten Balken
+    for (let i = 0; i < 3; i++) {
+        coins.push({
+            x: radius + Math.random() * (canvas.width - radius * 2),
+            y: -radius - Math.random() * 180,
+            radius: radius
+        });
+    }
+}
+
+
+function spawnShieldNearCube(cube) {
+    if (!cube) return;
+
+    const size = 30;
+    const gap = 55;
+
+    const side = cube.x > canvas.width / 2 ? -1 : 1;
+
+    let x = side < 0
+        ? cube.x - gap - size / 2
+        : cube.x + cube.width + gap + size / 2;
+
+    x = Math.max(
+        size / 2,
+        Math.min(canvas.width - size / 2, x)
+    );
+
+    shieldItems.push({
+        x: x,
+        y: cube.y + cube.height / 2,
+        size: size
+    });
+}
+
 
 function randomWidth() {
+    const sizes = [1, 2, 3, 4, 5, 6];
+    const size = sizes[Math.floor(Math.random() * sizes.length)];
 
-    return Math.floor(
-
-        Math.random() *
-        (maxWidth - baseWidth + 1)
-
-    ) + baseWidth;
-
+    return baseWidth * size;
 }
 
 
 function randomX(width) {
-
     return Math.floor(
-
-        Math.random() *
-        (canvas.width - width)
-
+        Math.random() * (canvas.width - width)
     );
-
 }
-
 
 
 function keyHandler(e) {
-
     if (!running) return;
 
-
     if (
-
         e.key === "a" ||
         e.key === "A" ||
         e.key === "ArrowLeft"
-
     ) {
-
         player.x -= playerSpeed;
-
     }
 
-
     if (
-
         e.key === "d" ||
         e.key === "D" ||
         e.key === "ArrowRight"
-
     ) {
-
         player.x += playerSpeed;
-
     }
 
-
     keepPlayerInside();
-
 }
-
 
 
 function setupTouchControls() {
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
 
-    const leftBtn =
-        document.getElementById("leftBtn");
+    leftBtn.addEventListener("pointerdown", function(e) {
+        e.preventDefault();
+        moveLeft = true;
+    });
 
-    const rightBtn =
-        document.getElementById("rightBtn");
+    leftBtn.addEventListener("pointerup", function() {
+        moveLeft = false;
+    });
 
+    leftBtn.addEventListener("pointercancel", function() {
+        moveLeft = false;
+    });
 
-    leftBtn.addEventListener(
-        "pointerdown",
-        function(e) {
+    leftBtn.addEventListener("pointerleave", function() {
+        moveLeft = false;
+    });
 
-            e.preventDefault();
+    rightBtn.addEventListener("pointerdown", function(e) {
+        e.preventDefault();
+        moveRight = true;
+    });
 
-            moveLeft = true;
+    rightBtn.addEventListener("pointerup", function() {
+        moveRight = false;
+    });
 
-        }
-    );
+    rightBtn.addEventListener("pointercancel", function() {
+        moveRight = false;
+    });
 
-
-    leftBtn.addEventListener(
-        "pointerup",
-        function() {
-
-            moveLeft = false;
-
-        }
-    );
-
-
-    leftBtn.addEventListener(
-        "pointercancel",
-        function() {
-
-            moveLeft = false;
-
-        }
-    );
-
-
-    leftBtn.addEventListener(
-        "pointerleave",
-        function() {
-
-            moveLeft = false;
-
-        }
-    );
-
-
-    rightBtn.addEventListener(
-        "pointerdown",
-        function(e) {
-
-            e.preventDefault();
-
-            moveRight = true;
-
-        }
-    );
-
-
-    rightBtn.addEventListener(
-        "pointerup",
-        function() {
-
-            moveRight = false;
-
-        }
-    );
-
-
-    rightBtn.addEventListener(
-        "pointercancel",
-        function() {
-
-            moveRight = false;
-
-        }
-    );
-
-
-    rightBtn.addEventListener(
-        "pointerleave",
-        function() {
-
-            moveRight = false;
-
-        }
-    );
-
+    rightBtn.addEventListener("pointerleave", function() {
+        moveRight = false;
+    });
 }
 
 
-
 function setZoom(value) {
-
     zoom = Math.max(
         minZoom,
         Math.min(maxZoom, value)
     );
 
-
-    canvas.style.transform =
-        "scale(" + zoom + ")";
-
+    canvas.style.transform = "scale(" + zoom + ")";
 }
 
 
 function setupZoom() {
+    canvas.addEventListener("wheel", function(e) {
+        e.preventDefault();
 
+        if (e.deltaY < 0) {
+            setZoom(zoom + 0.1);
+        } else {
+            setZoom(zoom - 0.1);
+        }
+    }, { passive: false });
 
-    canvas.addEventListener(
-        "wheel",
-        function(e) {
+    canvas.addEventListener("touchstart", function(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            lastTouchDistance = getTouchDistance(e.touches);
+        }
+    }, { passive: false });
 
+    canvas.addEventListener("touchmove", function(e) {
+        if (e.touches.length === 2) {
             e.preventDefault();
 
+            const currentDistance = getTouchDistance(e.touches);
 
-            if (e.deltaY < 0) {
+            if (lastTouchDistance !== null) {
+                const difference = currentDistance - lastTouchDistance;
+                const zoomChange = difference * 0.005;
 
-
-                setZoom(
-                    zoom + 0.1
-                );
-
-            } else {
-
-
-                setZoom(
-                    zoom - 0.1
-                );
-
+                setZoom(zoom + zoomChange);
             }
 
-        },
-        { passive: false }
-    );
-
-
-
-    canvas.addEventListener(
-        "touchstart",
-        function(e) {
-
-            if (e.touches.length === 2) {
-
-                e.preventDefault();
-
-                lastTouchDistance =
-                    getTouchDistance(e.touches);
-
-            }
-
-        },
-        { passive: false }
-    );
-
-
-    canvas.addEventListener(
-        "touchmove",
-        function(e) {
-
-            if (e.touches.length === 2) {
-
-                e.preventDefault();
-
-
-                const currentDistance =
-                    getTouchDistance(
-                        e.touches
-                    );
-
-
-                if (lastTouchDistance !== null) {
-
-                    const difference =
-                        currentDistance -
-                        lastTouchDistance;
-
-
-                    const zoomChange =
-                        difference * 0.005;
-
-
-                    setZoom(
-                        zoom + zoomChange
-                    );
-
-                }
-
-
-                lastTouchDistance =
-                    currentDistance;
-
-            }
-
-        },
-        { passive: false }
-    );
-
-
-    canvas.addEventListener(
-        "touchend",
-        function(e) {
-
-            if (e.touches.length < 2) {
-
-                lastTouchDistance = null;
-
-            }
-
+            lastTouchDistance = currentDistance;
         }
-    );
+    }, { passive: false });
 
+    canvas.addEventListener("touchend", function(e) {
+        if (e.touches.length < 2) {
+            lastTouchDistance = null;
+        }
+    });
 }
 
 
-
 function getTouchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
 
-    const dx =
-        touches[0].clientX -
-        touches[1].clientX;
-
-
-    const dy =
-        touches[0].clientY -
-        touches[1].clientY;
-
-
-    return Math.sqrt(
-
-        dx * dx +
-        dy * dy
-
-    );
-
+    return Math.sqrt(dx * dx + dy * dy);
 }
 
 
 function keepPlayerInside() {
-
     if (player.x < 0) {
-
         player.x = 0;
-
     }
 
-
-    if (
-        player.x + player.width >
-        canvas.width
-    ) {
-
-        player.x =
-            canvas.width -
-            player.width;
-
+    if (player.x + player.width > canvas.width) {
+        player.x = canvas.width - player.width;
     }
-
 }
-
 
 
 function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.clearRect(
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
-
-
-
-    ctx.fillStyle = "blue";
-
-    ctx.fillRect(
-
-        player.x,
-        player.y,
-        player.width,
-        player.height
-
-    );
-
-
-
-    ctx.fillStyle = "red";
-
-    ctx.fillRect(
-
-        enemy.x,
-        enemy.y,
-        enemy.width,
-        enemy.height
-
-    );
-
-
-
+    // HUD
     ctx.fillStyle = "black";
-
     ctx.font = "20px Arial";
+    ctx.textAlign = "left";
 
+    ctx.fillText("Score: " + score, 10, 25);
     ctx.fillText(
-
-        "Score: " + score,
-
+        "Speed: " + speed.toFixed(2) +
+        "   Shield: " + shieldCharges,
         10,
-        25
-
+        50
     );
 
-}
+    // 6 schwächere Motion-Blur-Spuren für rote Balken
+    for (const cube of cubes) {
+        for (let trail = 6; trail >= 1; trail--) {
+            ctx.globalAlpha = 0.035 * (7 - trail);
+            ctx.fillStyle = "red";
 
+            ctx.fillRect(
+                cube.x,
+                cube.y - speed * trail * 1.25,
+                cube.width,
+                cube.height
+            );
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "red";
+        ctx.fillRect(
+            cube.x,
+            cube.y,
+            cube.width,
+            cube.height
+        );
+    }
+
+    // 6 schwächere Motion-Blur-Spuren für Münzen
+    for (const coin of coins) {
+        for (let trail = 6; trail >= 1; trail--) {
+            ctx.globalAlpha = 0.035 * (7 - trail);
+            ctx.fillStyle = "#f5b400";
+
+            ctx.beginPath();
+            ctx.arc(
+                coin.x,
+                coin.y - speed * trail * 1.25,
+                coin.radius,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#f5b400";
+
+        ctx.beginPath();
+        ctx.arc(
+            coin.x,
+            coin.y,
+            coin.radius,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
+
+        ctx.strokeStyle = "#8a5b00";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = "#fff3a3";
+        ctx.font = "bold 14px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("$", coin.x, coin.y + 5);
+        ctx.textAlign = "left";
+    }
+
+    // 6 schwächere Motion-Blur-Spuren für Schilde
+    for (const shield of shieldItems) {
+        for (let trail = 6; trail >= 1; trail--) {
+            ctx.globalAlpha = 0.035 * (7 - trail);
+            ctx.fillStyle = "#168cff";
+
+            ctx.beginPath();
+            ctx.arc(
+                shield.x,
+                shield.y - speed * trail * 1.25,
+                shield.size / 2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "#168cff";
+
+        ctx.beginPath();
+        ctx.moveTo(shield.x, shield.y - 17);
+        ctx.lineTo(shield.x + 16, shield.y - 9);
+        ctx.lineTo(shield.x + 12, shield.y + 10);
+        ctx.lineTo(shield.x, shield.y + 18);
+        ctx.lineTo(shield.x - 12, shield.y + 10);
+        ctx.lineTo(shield.x - 16, shield.y - 9);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = "#064a9b";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.fillStyle = "white";
+        ctx.font = "bold 18px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("S", shield.x, shield.y + 6);
+        ctx.textAlign = "left";
+    }
+
+    // Spieler zuletzt zeichnen
+    if (player) {
+        player.x = Math.max(
+            0,
+            Math.min(canvas.width - player.width, player.x)
+        );
+
+        player.y = Math.max(
+            0,
+            Math.min(canvas.height - player.height - 4, player.y)
+        );
+
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "blue";
+
+        ctx.fillRect(
+            player.x,
+            player.y,
+            player.width,
+            player.height
+        );
+    }
+
+    ctx.globalAlpha = 1;
+}
 
 
 function checkCollision() {
-
-    return (
-
-        player.x <
-        enemy.x + enemy.width &&
-
-        player.x + player.width >
-        enemy.x &&
-
-        player.y <
-        enemy.y + enemy.height &&
-
-        player.y + player.height >
-        enemy.y
-
+    return cubes.some(cube =>
+        player.x < cube.x + cube.width &&
+        player.x + player.width > cube.x &&
+        player.y < cube.y + cube.height &&
+        player.y + player.height > cube.y
     );
-
 }
 
 
+function checkShieldCollection() {
+    shieldItems = shieldItems.filter(shield => {
+        const hit =
+            player.x < shield.x + shield.size / 2 &&
+            player.x + player.width > shield.x - shield.size / 2 &&
+            player.y < shield.y + shield.size / 2 &&
+            player.y + player.height > shield.y - shield.size / 2;
+
+        if (hit) {
+            shieldCharges = 2;
+        }
+
+        return !hit;
+    });
+}
+
+
+function checkCoinCollection() {
+    coins = coins.filter(coin => {
+        const hit =
+            player.x < coin.x + coin.radius &&
+            player.x + player.width > coin.x - coin.radius &&
+            player.y < coin.y + coin.radius &&
+            player.y + player.height > coin.y - coin.radius;
+
+        if (hit) {
+            score += 1;
+            coinSlowdown += 0.5;
+            speed = Math.max(1, speed - 0.5);
+        }
+
+        return !hit;
+    });
+}
+
 
 function gameOver() {
-
     running = false;
 
     moveLeft = false;
-
     moveRight = false;
 
-
     ctx.fillStyle = "black";
-
     ctx.font = "40px Arial";
 
     ctx.fillText(
-
         "GAME OVER",
-
         170,
         180
-
     );
-
 
     ctx.font = "25px Arial";
 
     ctx.fillText(
-
-        "Score: " + score,
-
+        "Score: " + score +
+        "   Speed: " + speed.toFixed(2),
         245,
         220
-
     );
 
-
-    setTimeout(
-
-        function() {
-
-            if (confirm("Neustarten?")) {
-
-                initGame();
-
-                gameLoop();
-
-            }
-
-        },
-
-        200
-
-    );
-
+    setTimeout(function() {
+        if (confirm("Neustarten?")) {
+            initGame();
+            gameLoop();
+        }
+    }, 200);
 }
-
 
 
 function gameLoop() {
-
     if (!running) return;
 
-
     if (moveLeft) {
-
         player.x -= playerSpeed;
-
     }
-
 
     if (moveRight) {
-
         player.x += playerSpeed;
-
     }
-
 
     keepPlayerInside();
 
-
-    const speed =
-        baseSpeed +
-        Math.floor(score / 3);
-
+    speed = Math.max(
+        1,
+        baseSpeed + Math.floor(score / 3) - coinSlowdown
+    );
 
     enemy.y += speed;
 
+    for (const cube of cubes) {
+        cube.y += speed;
+    }
+
+    for (const coin of coins) {
+        coin.y += speed;
+    }
+
+    for (const shield of shieldItems) {
+        shield.y += speed;
+    }
+
+    checkCoinCollection();
+    checkShieldCollection();
 
     if (checkCollision()) {
+        if (shieldCharges > 0) {
+            shieldCharges--;
 
-        gameOver();
-
-        return;
-
+            cubes = cubes.filter(cube =>
+                !(
+                    player.x < cube.x + cube.width &&
+                    player.x + player.width > cube.x &&
+                    player.y < cube.y + cube.height &&
+                    player.y + player.height > cube.y
+                )
+            );
+        } else {
+            gameOver();
+            return;
+        }
     }
-
 
     if (enemy.y > canvas.height) {
-
         score++;
 
+        cubes = cubes.filter(
+            cube => cube.y <= canvas.height
+        );
 
-        enemy.width =
-            randomWidth();
+        // Anzahl der roten Balken:
+        // Score 0-10  = 2
+        // Score 11-20 = 3
+        // Score 21-30 = 4
+        // usw.
+        const wantedCubes = Math.max(
+            2,
+            Math.floor((score - 1) / 10) + 2
+        );
 
+        while (cubes.length < wantedCubes) {
+            spawnCube(
+                -enemyHeight - Math.random() * 120
+            );
+        }
 
-        enemy.x =
-            randomX(enemy.width);
+        // Münzen unabhängig von den roten Balken
+        spawnCoinsFromTop();
 
+        // Alle 10 Punkte ein Schild
+        const level = Math.floor(score / 10);
 
+        if (level > lastShieldLevel && level > 0) {
+            const shieldCube = cubes[cubes.length - 1];
+
+            if (shieldCube) {
+                spawnShieldNearCube(shieldCube);
+            }
+
+            lastShieldLevel = level;
+        }
+
+        enemy.width = randomWidth();
+        enemy.x = randomX(enemy.width);
         enemy.y = 0;
-
     }
-
 
     draw();
 
-
-    requestAnimationFrame(
-        gameLoop
-    );
-
+    requestAnimationFrame(gameLoop);
 }
-
 </script>
-
 
 <script src="https://pl31383851.profitableratecpmnetwork.com/cc/f1/3b/ccf13b7b44c45267d2d24937b8fb3e92.js"></script>
 
